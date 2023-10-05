@@ -1,0 +1,6 @@
+go 1.21.1
+
+use (
+	./ass1
+	./assignment_2
+)
