@@ -28,6 +28,10 @@ func (app *application) errorResponse(w http.ResponseWriter, r *http.Request, st
 	}
 }
 
+func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
+	app.errorResponse(w, r, http.StatusBadRequest, err.Error())
+}
+
 // The serverErrorResponse() method will be used when our application encounters an
 // unexpected problem at runtime. It logs the detailed error message, then uses the
 // errorResponse() helper to send a 500 Internal Server Error status code and JSON
