@@ -4,16 +4,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"assignment_2.alexedwards.net/internal/validator"
 )
 
 type Video struct {
-	ID        int64
-	CreatedAt time.Time
-	Title     string
-	Year      int32
-	Runtime   int32
-	Genres    []string
-	Version   int32
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"-"`
+	Title     string    `json:"title"`
+	Year      int32     `json:"year,omitempty"`
+	Runtime   Runtime   `json:"runtime,omitempty"`
+	Genres    []string  `json:"genres,omitempty"`
+	Version   int32     `json:"version"`
+}
+
+func ValidateVideo(v *validator.Validator, video *Video) {
+	v.Check(video.Title != "", "title", "must be provided")
+	v.Check(len(video.Title) <= 500, "title", "must not be more than 500 bytes long")
+	v.Check(video.Year != 0, "year", "must be provided")
+	v.Check(video.Year >= 1888, "year", "must be greater than 1888")
+	v.Check(video.Year <= int32(time.Now().Year()), "year", "must not be in the future")
+	v.Check(video.Runtime != 0, "runtime", "must be provided")
+	v.Check(video.Runtime > 0, "runtime", "must be a positive integer")
+	v.Check(video.Genres != nil, "genres", "must be provided")
+	v.Check(len(video.Genres) >= 1, "genres", "must contain at least 1 genre")
+	v.Check(len(video.Genres) <= 5, "genres", "must not contain more than 5 genres")
+	v.Check(validator.Unique(video.Genres), "genres", "must not contain duplicate values")
 }
 
 // Implement a MarshalJSON() method on the Video struct, so that it satisfies the
