@@ -34,10 +34,22 @@ func (app *application) createVideoHandler(w http.ResponseWriter, r *http.Reques
 	v := validator.New()
 	// Call the Validatevideo() function and return a response containing the errors if
 	// any of the checks fail.
+	err = app.models.Movies.Insert(video)
+
 	if data.ValidateVideo(v, video); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/v1/videos/%d", video.ID))
+	// Write a JSON response with a 201 Created status code, the movie data in the
+	// response body, and the Location header.
+	err = app.writeJSON(w, http.StatusCreated, envelope{"movie": video}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+
 	fmt.Fprintf(w, "%+v\n", input)
 
 }

@@ -1,11 +1,13 @@
 package data
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"assignment_2.alexedwards.net/internal/validator"
+	"github.com/lib/pq"
 )
 
 type Video struct {
@@ -16,6 +18,23 @@ type Video struct {
 	Runtime   Runtime   `json:"runtime,omitempty"`
 	Genres    []string  `json:"genres,omitempty"`
 	Version   int32     `json:"version"`
+}
+
+func (m VideoModel) Insert(movie *Video) error {
+	// Define the SQL query for inserting a new record in the movies table and returning
+	// the system-generated data.
+	query := `
+INSERT INTO movies (title, year, runtime, genres)
+VALUES ($1, $2, $3, $4)
+RETURNING id, created_at, version`
+	// Create an args slice containing the values for the placeholder parameters from
+	// the movie struct. Declaring this slice immediately next to our SQL query helps to
+	// make it nice and clear *what values are being used where* in the query.
+	args := []interface{}{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
+	// Use the QueryRow() method to execute the SQL query on our connection pool,
+	// passing in the args slice as a variadic parameter and scanning the system-
+	// generated id, created_at and version values into the movie struct.
+	return m.DB.QueryRow(query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
 }
 
 func ValidateVideo(v *validator.Validator, video *Video) {
@@ -66,4 +85,25 @@ func (m Video) MarshalJSON() ([]byte, error) {
 	}
 	// Encode the anonymous struct to JSON, and return it.
 	return json.Marshal(aux)
+}
+
+type VideoModel struct {
+	DB *sql.DB
+}
+
+// Add a placeholder method for inserting a new record in the Videos table.
+
+// Add a placeholder method for fetching a specific record from the Videos table.
+func (m VideoModel) Get(id int64) (*Video, error) {
+	return nil, nil
+}
+
+// Add a placeholder method for updating a specific record in the Videos table.
+func (m VideoModel) Update(Video *Video) error {
+	return nil
+}
+
+// Add a placeholder method for deleting a specific record from the Videos table.
+func (m VideoModel) Delete(id int64) error {
+	return nil
 }
