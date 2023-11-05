@@ -5,17 +5,20 @@ import (
 	"database/sql" // New import
 	"flag"
 	"fmt"
-	"github.com/golang-migrate/migrate/v4"                   // New import
-	"github.com/golang-migrate/migrate/v4/database/postgres" // New import
-	_ "github.com/golang-migrate/migrate/v4/source/file"     // New import
-	"greenlight.alexedwards.net/internal/data"
+
+	// "github.com/golang-migrate/migrate/v4"                   // New import
+	// "github.com/golang-migrate/migrate/v4/database/postgres" // New import
+	// _ "github.com/golang-migrate/migrate/v4/source/file"     // New import
+	// "greenlight.alexedwards.net/internal/data"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
 	// Import the pq driver so that it can register itself with the database/sql
 	// package. Note that we alias this import to the blank identifier, to stop the Go
 	// compiler complaining that the package isn't being used.
+	"assignment_2.alexedwards.net/internal/data"
 	_ "github.com/lib/pq"
 )
 
@@ -41,7 +44,7 @@ type application struct {
 
 func main() {
 	var cfg config
-	flag.IntVar(&cfg.port, "port", 4001, "API server port")
+	flag.IntVar(&cfg.port, "port", 4002, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	// Read the DSN value from the db-dsn command-line flag into the config struct. We
 	// default to using our development DSN if no flag is provided.

@@ -1,12 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"assignment_2.alexedwards.net/internal/data"
 	"assignment_2.alexedwards.net/internal/validator"
+	// "time"
 )
 
 // Add a createVideoHandler for the "POST /v1/Videos" endpoint. For now we simply
@@ -34,7 +35,7 @@ func (app *application) createVideoHandler(w http.ResponseWriter, r *http.Reques
 	v := validator.New()
 	// Call the Validatevideo() function and return a response containing the errors if
 	// any of the checks fail.
-	err = app.models.Movies.Insert(video)
+	err = app.models.Videos.Insert(video)
 
 	if data.ValidateVideo(v, video); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
@@ -43,9 +44,9 @@ func (app *application) createVideoHandler(w http.ResponseWriter, r *http.Reques
 
 	headers := make(http.Header)
 	headers.Set("Location", fmt.Sprintf("/v1/videos/%d", video.ID))
-	// Write a JSON response with a 201 Created status code, the movie data in the
+	// Write a JSON response with a 201 Created status code, the video data in the
 	// response body, and the Location header.
-	err = app.writeJSON(w, http.StatusCreated, envelope{"movie": video}, headers)
+	err = app.writeJSON(w, http.StatusCreated, envelope{"video": video}, headers)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -60,21 +61,118 @@ func (app *application) createVideoHandler(w http.ResponseWriter, r *http.Reques
 func (app *application) showVideoHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIDParam(r)
 	if err != nil {
-		// Use the new notFoundResponse() helper.
 		app.notFoundResponse(w, r)
 		return
 	}
-	video := data.Video{
-		ID:        id,
-		CreatedAt: time.Now(),
-		Title:     "Casablanca",
-		Runtime:   102,
-		Genres:    []string{"drama", "romance", "war"},
-		Version:   1,
-	}
-	err = app.writeJSON(w, http.StatusOK, envelope{"Video": video}, nil)
+	// Call the Get() method to fetch the data for a specific video. We also need to
+	// use the errors.Is() function to check if it returns a data.ErrRecordNotFound
+	// error, in which case we send a 404 Not Found response to the client.
+	video, err := app.models.Videos.Get(id)
 	if err != nil {
-		// Use the new serverErrorResponse() helper.
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+	err = app.writeJSON(w, http.StatusOK, envelope{"video": video}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) updateVideoHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract the video ID from the URL.
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+	// Fetch the existing video record from the database, sending a 404 Not Found
+	// response to the client if we couldn't find a matching record.
+	video, err := app.models.Videos.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Declare an input struct to hold the expected data from the client.
+	var input struct {
+		Title   *string       `json:"title"`
+		Year    *int32        `json:"year"`
+		Runtime *data.Runtime `json:"runtime"`
+		Genres  []string      `json:"genres"`
+	}
+	// Decode the JSON as normal.
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	// If the input.Title value is nil then we know that no corresponding "title" key/
+	// value pair was provided in the JSON request body. So we move on and leave the
+	// video record unchanged. Otherwise, we update the video record with the new title
+	// value. Importantly, because input.Title is a now a pointer to a string, we need
+	// to dereference the pointer using the * operator to get the underlying value
+	// before assigning it to our video record.
+	if input.Title != nil {
+		video.Title = *input.Title
+	}
+	// We also do the same for the other fields in the input struct.
+	if input.Year != nil {
+		video.Year = *input.Year
+	}
+	if input.Runtime != nil {
+		video.Runtime = *input.Runtime
+	}
+	if input.Genres != nil {
+		video.Genres = input.Genres // Note that we don't need to dereference a slice.
+	}
+	v := validator.New()
+	if data.ValidateVideo(v, video); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+	err = app.models.Videos.Update(video)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJSON(w, http.StatusOK, envelope{"video": video}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) deleteVideoHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract the video ID from the URL.
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+	// Delete the video from the database, sending a 404 Not Found response to the
+	// client if there isn't a matching record.
+	err = app.models.Videos.Delete(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+	// Return a 200 OK status code along with a success message.
+	err = app.writeJSON(w, http.StatusOK, envelope{"message": "video successfully deleted"}, nil)
+	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
 }
