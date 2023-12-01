@@ -15,6 +15,11 @@ func (app *application) logError(r *http.Request, err error) {
 	})
 }
 
+func (app *application) rateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	message := "rate limit exceeded"
+	app.errorResponse(w, r, http.StatusTooManyRequests, message)
+}
+
 // The errorResponse() method is a generic helper for sending JSON-formatted error
 // messages to the client with a given status code. Note that we're using an interface{}
 // type for the message parameter, rather than just a string type, as this gives us
