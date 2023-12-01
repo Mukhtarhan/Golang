@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"assignment_2.alexedwards.net/internal/validator"
 	"github.com/lib/pq"
 )
 
@@ -26,7 +25,7 @@ func (m VideoModel) Insert(video *Video) error {
 	// Define the SQL query for inserting a new record in the videos table and returning
 	// the system-generated data.
 	query := `
-INSERT INTO videos (title, year, runtime, genres)
+INSERT INTO movies (title, year, runtime, genres)
 VALUES ($1, $2, $3, $4)
 RETURNING id, created_at, version`
 	// Create an args slice containing the values for the placeholder parameters from
@@ -40,19 +39,19 @@ RETURNING id, created_at, version`
 	return m.DB.QueryRowContext(ctx, query, args...).Scan(&video.ID, &video.CreatedAt, &video.Version)
 }
 
-func ValidateVideo(v *validator.Validator, video *Video) {
-	v.Check(video.Title != "", "title", "must be provided")
-	v.Check(len(video.Title) <= 500, "title", "must not be more than 500 bytes long")
-	v.Check(video.Year != 0, "year", "must be provided")
-	v.Check(video.Year >= 1888, "year", "must be greater than 1888")
-	v.Check(video.Year <= int32(time.Now().Year()), "year", "must not be in the future")
-	v.Check(video.Runtime != 0, "runtime", "must be provided")
-	v.Check(video.Runtime > 0, "runtime", "must be a positive integer")
-	v.Check(video.Genres != nil, "genres", "must be provided")
-	v.Check(len(video.Genres) >= 1, "genres", "must contain at least 1 genre")
-	v.Check(len(video.Genres) <= 5, "genres", "must not contain more than 5 genres")
-	v.Check(validator.Unique(video.Genres), "genres", "must not contain duplicate values")
-}
+// func ValidateVideo(v *validator.Validator, video *Video) {
+// 	v.Check(video.Title != "", "title", "must be provided")
+// 	v.Check(len(video.Title) <= 500, "title", "must not be more than 500 bytes long")
+// 	v.Check(video.Year != 0, "year", "must be provided")
+// 	v.Check(video.Year >= 1888, "year", "must be greater than 1888")
+// 	v.Check(video.Year <= int32(time.Now().Year()), "year", "must not be in the future")
+// 	v.Check(video.Runtime != 0, "runtime", "must be provided")
+// 	v.Check(video.Runtime > 0, "runtime", "must be a positive integer")
+// 	v.Check(video.Genres != nil, "genres", "must be provided")
+// 	v.Check(len(video.Genres) >= 1, "genres", "must contain at least 1 genre")
+// 	v.Check(len(video.Genres) <= 5, "genres", "must not contain more than 5 genres")
+// 	v.Check(validator.Unique(video.Genres), "genres", "must not contain duplicate values")
+// }
 
 // Implement a MarshalJSON() method on the Video struct, so that it satisfies the
 // json.Marshaler interface.
@@ -104,7 +103,7 @@ func (m VideoModel) Get(id int64) (*Video, error) {
 	// Define the SQL query for retrieving the video data.
 	query := `
 SELECT id, created_at, title, year, runtime, genres, version
-FROM videos
+FROM movies
 WHERE id = $1`
 	// Declare a video struct to hold the data returned by the query.
 	var video Video
@@ -145,7 +144,7 @@ WHERE id = $1`
 // Add a placeholder method for updating a specific record in the Videos table.
 func (m VideoModel) Update(Video *Video) error {
 	query := `
-UPDATE Videos
+UPDATE movies
 SET title = $1, year = $2, runtime = $3, genres = $4, version = version + 1
 WHERE id = $5 AND version = $6
 RETURNING version`
@@ -175,55 +174,67 @@ RETURNING version`
 	return nil
 
 }
-func (m VideoModel) GetAll(title string, genres []string, filters Filters) ([]*Video, error) {
-	// Construct the SQL query to retrieve all Video records.
-	query := `
-SELECT id, created_at, title, year, runtime, genres, version
-FROM Videos
-ORDER BY id`
+func (m VideoModel) GetAll(title string, genres []string, filters Filters) ([]*Video, Metadata, error) {
+	// Construct the SQL query to retrieve all movie records.
+	query := fmt.Sprintf(`
+SELECT count(*) OVER(), id, created_at, title, year, runtime, genres, version
+FROM movies
+WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
+AND (genres @> $2 OR $2 = '{}')
+ORDER BY %s %s, id ASC
+LIMIT $3 OFFSET $4`, filters.sortColumn(), filters.sortDirection())
+
 	// Create a context with a 3-second timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+
+	args := []interface{}{title, pq.Array(genres), filters.limit(), filters.offset()}
 	// Use QueryContext() to execute the query. This returns a sql.Rows resultset
 	// containing the result.
-	rows, err := m.DB.QueryContext(ctx, query)
+	rows, err := m.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
+
 	// Importantly, defer a call to rows.Close() to ensure that the resultset is closed
 	// before GetAll() returns.
 	defer rows.Close()
-	// Initialize an empty slice to hold the Video data.
-	Videos := []*Video{}
+	// Initialize an empty slice to hold the movie data.
+	totalRecords := 0
+
+	videos := []*Video{}
 	// Use rows.Next to iterate through the rows in the resultset.
 	for rows.Next() {
-		// Initialize an empty Video struct to hold the data for an individual Video.
-		var Video Video
-		// Scan the values from the row into the Video struct. Again, note that we're
+		// Initialize an empty Movie struct to hold the data for an individual movie.
+		var video Video
+		// Scan the values from the row into the Movie struct. Again, note that we're
 		// using the pq.Array() adapter on the genres field here.
 		err := rows.Scan(
-			&Video.ID,
-			&Video.CreatedAt,
-			&Video.Title,
-			&Video.Year,
-			&Video.Runtime,
-			pq.Array(&Video.Genres),
-			&Video.Version,
+			&totalRecords,
+			&video.ID,
+			&video.CreatedAt,
+			&video.Title,
+			&video.Year,
+			&video.Runtime,
+			pq.Array(&video.Genres),
+			&video.Version,
 		)
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 
-		// Add the Video struct to the slice.
-		Videos = append(Videos, &Video)
+		// Add the Movie struct to the slice.
+		videos = append(videos, &video)
 	}
 	// When the rows.Next() loop has finished, call rows.Err() to retrieve any error
 	// that was encountered during the iteration.
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Metadata{}, err // Update this to return an empty Metadata struct.
 	}
-	// If everything went OK, then return the slice of Videos.
-	return Videos, nil
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+
+	// If everything went OK, then return the slice of movies.
+	return videos, metadata, nil
 }
 
 // Add a placeholder method for deleting a specific record from the Videos table.
@@ -233,7 +244,7 @@ func (m VideoModel) Delete(id int64) error {
 	}
 	// Construct the SQL query to delete the record.
 	query := `
-DELETE FROM videos
+DELETE FROM movies
 WHERE id = $1`
 	// Execute the SQL query using the Exec() method, passing in the id variable as
 	// the value for the placeholder parameter. The Exec() method returns a sql.Result

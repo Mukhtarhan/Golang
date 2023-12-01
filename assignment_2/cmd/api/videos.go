@@ -32,15 +32,15 @@ func (app *application) createVideoHandler(w http.ResponseWriter, r *http.Reques
 		Genres:  input.Genres,
 	}
 	// Initialize a new Validator.
-	v := validator.New()
+	// v := validator.New()
 	// Call the Validatevideo() function and return a response containing the errors if
 	// any of the checks fail.
 	err = app.models.Videos.Insert(video)
 
-	if data.ValidateVideo(v, video); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
+	// if data.ValidateVideo(v, video); !v.Valid() {
+	// 	app.failedValidationResponse(w, r, v.Errors)
+	// 	return
+	// }
 
 	headers := make(http.Header)
 	headers.Set("Location", fmt.Sprintf("/v1/videos/%d", video.ID))
@@ -84,8 +84,6 @@ func (app *application) showVideoHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *application) listVideosHandler(w http.ResponseWriter, r *http.Request) {
-	// To keep things consistent with our other handlers, we'll define an input struct
-	// to hold the expected values from the request query string.
 	var input struct {
 		Title  string
 		Genres []string
@@ -95,12 +93,10 @@ func (app *application) listVideosHandler(w http.ResponseWriter, r *http.Request
 	qs := r.URL.Query()
 	input.Title = app.readString(qs, "title", "")
 	input.Genres = app.readCSV(qs, "genres", []string{})
-	// Read the page and page_size query string values into the embedded struct.
 	input.Filters.Page = app.readInt(qs, "page", 1, v)
 	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
-	// Read the sort query string value into the embedded struct.
 	input.Filters.Sort = app.readString(qs, "sort", "id")
-
+	// Add the supported sort values for this endpoint to the sort safelist.
 	input.Filters.SortSafelist = []string{"id", "title", "year", "runtime", "-id", "-title", "-year", "-runtime"}
 	// Execute the validation checks on the Filters struct and send a response
 	// containing the errors if necessary.
@@ -108,18 +104,18 @@ func (app *application) listVideosHandler(w http.ResponseWriter, r *http.Request
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-
-	videos, err := app.models.Videos.GetAll(input.Title, input.Genres, input.Filters)
+	movies, metadata, err := app.models.Videos.GetAll(input.Title, input.Genres, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 	// Send a JSON response containing the movie data.
-	err = app.writeJSON(w, http.StatusOK, envelope{"videos": videos}, nil)
+	err = app.writeJSON(w, http.StatusOK, envelope{"movies": movies, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
 
+	fmt.Fprintf(w, "%+v\n", input)
 }
 
 func (app *application) updateVideoHandler(w http.ResponseWriter, r *http.Request) {
@@ -174,11 +170,11 @@ func (app *application) updateVideoHandler(w http.ResponseWriter, r *http.Reques
 	if input.Genres != nil {
 		video.Genres = input.Genres // Note that we don't need to dereference a slice.
 	}
-	v := validator.New()
-	if data.ValidateVideo(v, video); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
+	// v := validator.New()
+	// if data.ValidateVideo(v, video); !v.Valid() {
+	// 	app.failedValidationResponse(w, r, v.Errors)
+	// 	return
+	// }
 	err = app.models.Videos.Update(video)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
