@@ -82,6 +82,10 @@ func main() {
 		logger: logger,
 		models: data.NewModels(db),
 	}
+	err = app.serve()
+	if err != nil {
+		logger.PrintFatal(err, nil)
+	}
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.port),
 		Handler:      app.routes(),
