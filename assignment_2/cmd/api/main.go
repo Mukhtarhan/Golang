@@ -67,10 +67,8 @@ func main() {
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
 	db, err := openDB(cfg)
-
 	if err != nil {
 		logger.PrintFatal(err, nil)
-
 	}
 
 	defer db.Close()
