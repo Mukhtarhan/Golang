@@ -16,6 +16,8 @@ var (
 // like a UserModel and PermissionModel, as our build progresses.
 type Models struct {
 	Videos VideoModel
+	Tokens TokenModel
+	Users  UserModel
 }
 
 // For ease of use, we also add a New() method which returns a Models struct containing
@@ -23,5 +25,7 @@ type Models struct {
 func NewModels(db *sql.DB) Models {
 	return Models{
 		Videos: VideoModel{DB: db},
+		Tokens: TokenModel{DB: db}, // Initialize a new TokenModel instance.
+		Users:  UserModel{DB: db},
 	}
 }
