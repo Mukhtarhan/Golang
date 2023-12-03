@@ -5,6 +5,7 @@ import (
 	"database/sql" // New import
 	"flag"
 	"fmt"
+	"strings"
 
 	// "github.com/golang-migrate/migrate/v4"                   // New import
 	// "github.com/golang-migrate/migrate/v4/database/postgres" // New import
@@ -49,6 +50,9 @@ type config struct {
 		password string
 		sender   string
 	}
+	cors struct {
+		trustedOrigins []string
+	}
 }
 type application struct {
 	config config
@@ -79,6 +83,10 @@ func main() {
 	flag.StringVar(&cfg.smtp.password, "smtp-password", "d8672aa2264bb5", "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.alexedwards.net>", "SMTP sender")
 
+	flag.Func("cors-trusted-origins", "Trusted CORS origins (space separated)", func(val string) error {
+		cfg.cors.trustedOrigins = strings.Fields(val)
+		return nil
+	})
 	flag.Parse()
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
